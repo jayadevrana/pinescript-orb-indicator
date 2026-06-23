@@ -1,0 +1,173 @@
+//@version=5
+indicator('ORB', overlay=true)
+
+
+start_year = input(2024)
+start_month = input(10)
+start_date = input(30)
+
+InSession(sess) =>
+    na(time(timeframe.period, sess)) == false
+sessionHours = input.session(defval="0920-1500", title="Session Hours")
+weekendsStr = ":1234567" 
+sec=InSession(sessionHours + weekendsStr)
+
+start = timestamp(start_year, start_month, start_date,09,15) == time ? 1 : 0
+startt = false
+startt := startt[1]
+if start
+    startt := true
+
+//////////
+
+highes = startt and close > 0
+
+high_value = ta.valuewhen(highes,high,0)
+
+if high_value < high_value[1]
+    high_value := high_value[1]
+
+plot(high_value[1],color = color.green,style = plot.style_circles)
+
+//////////////////////////
+lowes = startt and close > 0
+
+low_value = ta.valuewhen(lowes,low,0)
+
+if low_value > low_value[1]
+    low_value := low_value[1]
+
+plot(low_value[1],color = color.red,style = plot.style_circles)
+
+
+day_increment = input.int(0,step = 50,inline = "x")
+
+day_open = input(51289,inline = "x") + day_increment
+
+
+spot_ = input.string ( "BANKNIFTY" , title = "Spot Symbol" , options = ["BANKNIFTY","NIFTY","FINNIFTY","MIDCPNIFTY"] )
+
+// spot =  spot_ == "NSE:BANKNIFTY1!" ? "NSE:BANKNIFTY" : spot_ == "NSE:NIFTY1!" ? "NSE:NIFTY" : spot_ == "NSE:FINNIFTY1!" ? "NSE:FINNIFTY" : spot_ == "NSE:CNXFINANCE" ? "NSE:FINNIFTY" : spot_ == "NSE:MIDCPNIFTY1!" ? "NSE:MIDCPNIFTY" : spot_ == "NSE:CNXMIDCAP" ? "NSE:MIDCPNIFTY" : spot_
+spot = syminfo.tickerid  //spot_ == "BANKNIFTY" ? "NSE:BANKNIFTY" : spot_ == "NIFTY" ? "NSE:NIFTY" : spot_ == "FINNIFTY" ? "NSE:CNXFINANCE" :  "NSE:CNXMIDCAP" 
+
+strike_interval = input.int ( 100 , title = "Strike Interval" )
+_day = input.string ( "16" , title = "Exp Day", inline="s1" )
+_month = input.string ( "10" , title = "M" , inline="s1")
+_year = input.string ( "24" , title = "Y" , inline="s1")
+
+
+mon = _month == "10" ? "Oct" : _month == "11" ? "Nov" : _month == "12" ? "Dec" : na
+
+
+// Round the day_open to the nearest 100
+rounded_value = (math.round(day_open / strike_interval) * strike_interval) 
+
+// Plot the rounded value on the chart
+//plot(rounded_value, color=color.blue, linewidth=2, title="Rounded Day Open")
+
+symbol_ce = spot_+_year+_month+_day+"C"+str.tostring(rounded_value - 2*strike_interval)
+
+close_ce_symbol = request.security(symbol_ce,"",close)
+high_ce_symbol = request.security(symbol_ce,"",high)
+low_ce_symbol = request.security(symbol_ce,"",low)
+low1_ce_symbol = request.security(symbol_ce,"",low[1])
+
+
+//////////
+
+highes1 = startt and close_ce_symbol > 0
+
+high_value1 = ta.valuewhen(highes1,high_ce_symbol,0)
+
+if high_value1 < high_value1[1]
+    high_value1 := high_value1[1]
+
+//plot(high_value1[1])
+
+
+// Construct the put option symbol
+symbol_pe = spot_+_year+_month+_day+"P" + str.tostring(rounded_value + 2*strike_interval)
+
+// Fetching close, high, and low for the put option
+close_pe_symbol = request.security(symbol_pe, "", close)
+high_pe_symbol = request.security(symbol_pe, "", high)
+low_pe_symbol = request.security(symbol_pe, "", low)
+low1_pe_symbol = request.security(symbol_pe, "", low[1])
+sl_should_not_more_than = input(25.00)
+
+// Define a condition to find the highest value for the put option
+highes2 = startt and close_pe_symbol > 0
+
+// Get the highest value when the condition is met for the put option
+high_value2 = ta.valuewhen(highes2, high_pe_symbol, 0)
+
+// Adjust high_value2 if it's lower than the previous value
+if high_value2 < high_value2[1]
+    high_value2 := high_value2[1]
+
+// Plot the high value for the put option
+//plot(high_value2[1], color=color.red, title="High Put Option Value")
+var int buyTime = na
+var int sellTime = na
+
+
+buy1 = (close_ce_symbol > high_value1[1]) and ((close_ce_symbol - low1_ce_symbol) < sl_should_not_more_than)
+sell1 = (close_pe_symbol > high_value2[1]) and ((close_pe_symbol - low1_pe_symbol) < sl_should_not_more_than)
+
+buy = buy1 and not (buy1[1] or buy1[2] or buy1[3] or buy1[4] or buy1[5] or buy1[6] or buy1[7] or buy1[8] or buy1[9] or buy1[10])
+sell = sell1 and not (sell1[1] or sell1[2] or sell1[3] or sell1[4] or sell1[5] or sell1[6] or sell1[7] or sell1[8] or sell1[9] or sell1[10])
+
+
+// Capture the time when buy happens
+if (buy)  // Capture the time only once when the buy condition is met
+    buyTime := time
+
+if sell
+    sellTime := time
+
+
+formattedLongTime =   hour(buyTime)//, minute(longTime)
+formattedShortTime =  hour(sellTime)//, minute(shortTime)
+
+formattedLongTimem =   minute(buyTime)//, minute(longTime)
+formattedShortTimem =  minute(sellTime)//, minute(shortTime)
+slOffset = input(20,"stop loss")
+
+entryPrice = close_ce_symbol
+
+// Calculating SL and Targets
+slPrice = entryPrice - slOffset
+tg1 = entryPrice + (slOffset * 1)
+tg2 = entryPrice + (slOffset * 2)
+tg3 = entryPrice + (slOffset * 3)
+tg4 = entryPrice + (slOffset * 4)
+tg5 = entryPrice + (slOffset * 5)
+
+entryPrices = close_pe_symbol
+
+// Calculating SL and Targets
+slPrices = entryPrices - slOffset
+tg1s = entryPrices + (slOffset * 1)
+tg2s = entryPrices + (slOffset * 2)
+tg3s = entryPrices + (slOffset * 3)
+tg4s = entryPrices + (slOffset * 4)
+tg5s = entryPrices + (slOffset * 5)
+
+// Creating labels
+var label tradingLabel = na
+
+size = input.string(size.normal,options = [size.normal,size.small,size.huge,size.tiny,size.large])
+
+
+if (buy and sec)  // Adjust frequency to prevent label overload
+    tradingLabel := label.new(x=bar_index, y=high, text=' ' + str.tostring(rounded_value - 2*strike_interval) +'CE ' +str.tostring(_day)+'th  '+ mon +' ' + str.tostring(_year)+'\nEntry: ' + str.tostring(close_ce_symbol) + '\nSL: ' + str.tostring(slPrice) + '\nTg 1: ' + str.tostring(tg1) + '\nTg 2: ' + str.tostring(tg2) + '\nTg 3: ' + str.tostring(tg3) + '\nTg 4: ' + str.tostring(tg4) + '\nTg 5: ' + str.tostring(tg5) + '\nTime: '  + str.tostring(formattedLongTime) +':' + str.tostring(formattedLongTimem),color=close > high_value[1] ? color.new(color.teal, 0) : color.maroon,style=label.style_label_down,textcolor=color.white,size=size)
+
+// Creating labels
+var label tradingLabels = na
+
+
+
+if (sell and sec)  // Adjust frequency to prevent label overload
+    tradingLabels := label.new(x=bar_index, y=low, text=' '  + str.tostring(rounded_value + 2*strike_interval) +' PE ' +str.tostring(_day)+'th  '+ mon +' ' + str.tostring(_year)+ '\nEntry: ' + str.tostring(close_pe_symbol) + '\nSL: ' + str.tostring(slPrices) + '\nTg 1: ' + str.tostring(tg1s) + '\nTg 2: ' + str.tostring(tg2s) + '\nTg 3: ' + str.tostring(tg3s) + '\nTg 4: ' + str.tostring(tg4s) + '\nTg 5: ' + str.tostring(tg5s) + '\nTime: '  + str.tostring(formattedShortTime) +':' + str.tostring(formattedShortTimem),color= close < low_value[1] ? color.new(color.teal, 0) : color.maroon,style=label.style_label_up,textcolor=color.white,size=size)
+
+
